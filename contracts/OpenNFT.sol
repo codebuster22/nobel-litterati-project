@@ -4,7 +4,7 @@ import '@openzeppelin/contracts/token/ERC721/ERC721.sol';
 import "@openzeppelin/contracts/utils/Counters.sol";
 import '@openzeppelin/contracts/access/Ownable.sol';
 
-contract OpenNFT is ERC721 {
+contract OpenNFT is ERC721, Ownable {
     using Counters for Counters.Counter;
     Counters.Counter public tokenId;
 
@@ -59,7 +59,7 @@ contract OpenNFT is ERC721 {
             : '';
     }
 
-    function setBaseUrl(string memory baseUri_) public {
+    function setBaseUrl(string memory baseUri_) public onlyOwner {
         baseUri = baseUri_;
     }
 

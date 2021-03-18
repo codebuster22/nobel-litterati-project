@@ -1,5 +1,5 @@
-var SimpleStorage = artifacts.require("./SimpleStorage.sol");
+const OpenNFT = artifacts.require('OpenNFT');
 
-module.exports = function(deployer) {
-  deployer.deploy(SimpleStorage);
-};
+module.exports = (deployer) => {
+  deployer.deploy(OpenNFT, "Nobel Litterati", "NB");
+}
