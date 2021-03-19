@@ -63,7 +63,7 @@ contract OpenNFT is ERC721, Ownable {
         baseUri = baseUri_;
     }
 
-    function _baseURI() override returns(string memory _base_URI){
+    function _baseURI() internal override view returns(string memory _base_URI){
         return baseUri;
     }
 

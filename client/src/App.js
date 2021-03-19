@@ -3,8 +3,10 @@ import "./App.css";
 import OpenNFTContract from "./contracts/OpenNFT.json";
 import NobelMainContract from "./contracts/NobelMain.json";
 import NobelTokenContract from "./contracts/NobelToken.json";
-
 import getWeb3 from "./getWeb3";
+
+import ipfsClient from 'ipfs-http-client';
+const ipfs = ipfsClient('https://ipfs.infura.io:5001');
 
 
 
@@ -99,8 +101,26 @@ const PostLitter = () => {
 
   const [imageLoaded, setImageLoaded] = useState(false);
   const [file, setFile] = useState();
+  const [previewImage, setPreviewImage] = useState();
 
+  const handleInputFile = (event) => {
+    if( event.target.files && event.target.files[0] ){
+      const file = event.target.files[0];
+      setPreviewImage(URL.createObjectURL(file));
+      setImageLoaded(true);
+      const reader = new window.FileReader();
+      reader.readAsArrayBuffer(file);
+      reader.onloadend = () => {
+        setFile(Buffer(reader.result));
+      }
+    }
+  }
 
+  const handleDestroyLitter = async () => {
+    console.log(file);
+    const result = await ipfs.add(file);
+    console.log(`https://ipfs.infura.io/ipfs/${result.path}`);
+  }
 
 
   return (
@@ -109,6 +129,7 @@ const PostLitter = () => {
               <div className={'custom-file mt-5 mb-3'}>
                 <input 
                     type={'file'} 
+                    onChange={handleInputFile}
                     placeholder={"Upload the litter"} 
                     className={'upload-litter custom-file-input'} 
                     id={'customFile'} 
@@ -123,13 +144,13 @@ const PostLitter = () => {
               {
                 imageLoaded?
                     <div className={'litter-preview-container mt-3 mb-3 p-2'}>
-                      <img src={''} alt={'litter-preview'} className={'LitterPreview'} />
+                      <img src={previewImage} alt={'litter-preview'} className={'LitterPreview'} />
                     </div>
                     :
                     <></>
               }
               <div>
-                <button className={'btn btn-danger mt-3 mb-3'} >
+                <button type={'button'} onClick={handleDestroyLitter} className={'btn btn-danger mt-3 mb-3'} >
                   Destroy Litter!
                 </button>
               </div>
