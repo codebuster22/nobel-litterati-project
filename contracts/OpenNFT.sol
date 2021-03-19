@@ -27,7 +27,7 @@ contract OpenNFT is ERC721, Ownable {
     }
 
     function createNFT(address _creator, string memory _tokenURI) 
-                                    public returns(uint tokenId_) {
+                                    public returns(uint _reward) {
         tokenId.increment();
 
         uint newTokenId = tokenId.current();
@@ -37,7 +37,7 @@ contract OpenNFT is ERC721, Ownable {
 
         user_to_tokens[_creator].push(newTokenId);  //new
 
-        return newTokenId;
+        return 1;
     }
 
     function getUserNFTs(address _creator) public 
@@ -50,12 +50,12 @@ contract OpenNFT is ERC721, Ownable {
         return tokenURIs[_tokenId];
     }
 
-    function tokenURI(uint256 _tokenId) public view virtual override returns (string memory _uri) {
-        require(_exists(_tokenId), "ERC721Metadata: URI query for nonexistent token");
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory _uri) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
 
         string memory baseURI = _baseURI();
         return bytes(baseURI).length > 0
-            ? string(abi.encodePacked(baseURI, tokenURIs[_tokenId]))
+            ? string(abi.encodePacked(baseURI, tokenURIs[tokenId]))
             : '';
     }
 
@@ -63,7 +63,7 @@ contract OpenNFT is ERC721, Ownable {
         baseUri = baseUri_;
     }
 
-    function _baseURI() internal view override returns(string memory _base_URI){
+    function _baseURI() override returns(string memory _base_URI){
         return baseUri;
     }
 
