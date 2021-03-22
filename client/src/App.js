@@ -36,6 +36,10 @@ class App extends Component {
         NodeMainNetwork && NodeMainNetwork.address,
       );
 
+      this.currentAccount= this.accounts[0];
+
+      this.fetchUserStats(this.currentAccount);
+
       // const NodeTokenNetwork = NobelTokenContract.networks[this.networkId];
       // this.NodeTokenInstance = new this.web3.eth.Contract(
       //   NobelTokenContract.abi,
@@ -56,6 +60,32 @@ class App extends Component {
     }
   };
 
+  fetchUserStats = async (account) => {
+    const litterBalance = await this.NodeMainInstance
+                          .methods.getBalanceOfLitter(account).call();
+    const nobelBalance = await this.NodeMainInstance
+                          .methods.getBalanceOfNobels(account).call();
+    this.setState({
+      litterBalance: litterBalance,
+      nobelBalance: nobelBalance
+    })
+  }
+
+  postLitterOnContract = async (uri) => {
+    const response = await this.NodeMainInstance.methods
+                  .createNobelLitter(uri).send({
+                    from: this.currentAccount,
+                    gas: 3000000,
+                    gasPrice: 150000
+                  });
+    console.log(response);
+    await this.fetchUserStats(this.currentAccount);
+  }
+
+  // fetchLitters = async () => {
+  //   const response = await this.OpenNFTInstance.methods.
+  // }
+
   render() {
     if (!this.web3) {
       return <div>Loading Web3, accounts, and contract...</div>;
@@ -63,10 +93,14 @@ class App extends Component {
     return (
       <div className="App container">
         <div className={'row'}>
-          <UserStats />
+          <UserStats 
+              userAddress={this.currentAccount} 
+              totalLitters={this.state.litterBalance} 
+              nobelBalance={this.state.nobelBalance} 
+              />
         </div>
         <div className={'row'}>
-          <PostLitter />
+          <PostLitter postLitterOnContract={this.postLitterOnContract} />
           <ViewLitters />
         </div>
       </div>
@@ -83,13 +117,13 @@ const UserStats = ({userAddress, totalLitters, nobelBalance}) => {
   return (
         <div className={'user-stats col-12 d-flex flex-wrap justify-content-around'}>
             <h4 >
-              User Address:- 
+              User Address:- {userAddress}
             </h4>
             <h4>
-              Total Litters Sumbitted:- 
+              Total Litters Sumbitted:- {totalLitters}
             </h4>
             <h4>
-              Nobel Balance:- 
+              Nobel Balance:- {nobelBalance}
             </h4>
         </div>
   )
@@ -97,7 +131,7 @@ const UserStats = ({userAddress, totalLitters, nobelBalance}) => {
 
 }
 
-const PostLitter = () => {
+const PostLitter = ({postLitterOnContract}) => {
 
   const [imageLoaded, setImageLoaded] = useState(false);
   const [file, setFile] = useState();
@@ -119,7 +153,7 @@ const PostLitter = () => {
   const handleDestroyLitter = async () => {
     console.log(file);
     const result = await ipfs.add(file);
-    console.log(`https://ipfs.infura.io/ipfs/${result.path}`);
+    await postLitterOnContract(`https://ipfs.infura.io/ipfs/${result.path}`);
   }
 
 
