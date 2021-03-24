@@ -11,7 +11,7 @@ const ipfs = ipfsClient('https://ipfs.infura.io:5001');
 
 
 class App extends Component {
-  state = { isLoaded: false };
+  state = { isLoaded: false, litters: [] };
 
   componentDidMount = async () => {
     try {
@@ -40,6 +40,10 @@ class App extends Component {
 
       this.fetchUserStats(this.currentAccount);
 
+      this.fetchTokenIds();
+
+      this.listenToNftCreation();
+
       // const NodeTokenNetwork = NobelTokenContract.networks[this.networkId];
       // this.NodeTokenInstance = new this.web3.eth.Contract(
       //   NobelTokenContract.abi,
@@ -59,6 +63,30 @@ class App extends Component {
       console.error(error);
     }
   };
+
+  fetchTokenIds = async () => {
+    const litters = this.state.litters;
+    const CurrentTokenId = await this.OpenNFTInstance.methods.tokenId().call();
+    for(let i = 1; i<=CurrentTokenId; i++){
+      const tokenUri = await this.OpenNFTInstance.methods.getTokenUri(i).call();
+      const tokenId = i;
+      litters.unshift({tokenUri, tokenId});
+    };
+    this.setState({litters: litters});
+  }
+
+  listenToNftCreation = async () => {
+    this.OpenNFTInstance.events.NftTokenCreated()
+            .on('data',
+                  (receipt)=>{
+                    const {creator, tokenId, tokenUri} = receipt.returnValues
+                    const litter = {creator, tokenId, tokenUri};
+                    const litters = this.state.litters;
+                    litters.unshift(litter);
+                    this.setState({litters: litters});
+                  }
+              )
+  }
 
   fetchUserStats = async (account) => {
     const litterBalance = await this.NodeMainInstance
@@ -101,7 +129,7 @@ class App extends Component {
         </div>
         <div className={'row'}>
           <PostLitter postLitterOnContract={this.postLitterOnContract} />
-          <ViewLitters />
+          <ViewLitters litters={this.state.litters} />
         </div>
       </div>
     );
@@ -153,7 +181,9 @@ const PostLitter = ({postLitterOnContract}) => {
   const handleDestroyLitter = async () => {
     console.log(file);
     const result = await ipfs.add(file);
-    await postLitterOnContract(`https://ipfs.infura.io/ipfs/${result.path}`);
+    await postLitterOnContract(
+      `https://ipfs.infura.io/ipfs/${result.path}`
+      );
   }
 
 
@@ -198,32 +228,30 @@ const PostLitter = ({postLitterOnContract}) => {
 
 const ViewLitters = ({litters}) => {
 
-
+  const renderLitters = (litters) =>
+        litters.map(
+            litter => <LitterCard litter={litter} key={litter.tokenId} />
+          )
 
   return (
           <div className={'col-12 col-md-6 view-litters'} >
             <div className={'mt-5 mb-5 p-2 d-flex justify-content-center'}>
-                <LitterCard />
+                {renderLitters(litters)}
             </div>
           </div>
   )
 
 }
 
-const LitterCard = ({image, address}) => {
+const LitterCard = ({litter}) => {
 
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(true);
 
   return (
           <div className="card" style={{width: '18rem'}}>
-                  {
-                    imageLoaded?
-                        <img src="..." className="card-img-top" alt="..." />
-                        :
-                        <></>
-                  }
+                  <img src={litter.tokenUri} className="card-img-top" alt="..." />
                   <div className="card-body">
-                    <h5 className="card-title">User Address</h5>
+                    <h5 className="card-title">Username</h5>
                     <a href="#" className="btn btn-primary">Give Reward</a>
                   </div>
             </div>

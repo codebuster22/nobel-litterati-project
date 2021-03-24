@@ -12,6 +12,8 @@ contract OpenNFT is ERC721, Ownable {
 
     event NFTInitialised(uint _time, address _caller);
 
+    event NftTokenCreated(address creator, uint tokenId, string tokenUri);
+
     mapping(uint => string) private tokenURIs;
 
     mapping(address => uint[]) private user_to_tokens;  //new
@@ -36,6 +38,8 @@ contract OpenNFT is ERC721, Ownable {
         tokenURIs[newTokenId] = _tokenURI;
 
         user_to_tokens[_creator].push(newTokenId);  //new
+
+        emit NftTokenCreated(_creator, newTokenId, tokenURIs[newTokenId]);
 
         return 1;
     }
