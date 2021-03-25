@@ -47,4 +47,8 @@ contract NobelToken is ERC20PresetMinterPauser {
         _mint(to, amount);
     }
 
+    fallback () external {
+        revert();
+    }
+
 }   

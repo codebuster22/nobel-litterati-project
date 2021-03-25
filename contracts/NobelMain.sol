@@ -18,8 +18,11 @@ contract NobelMain is Ownable {
         nobels = new NobelToken(_initial_supply, _minting_allowance_per_call, _cool_down_time_per_mint);
     }
 
-    function createNobelLitter(string memory _litterUri) public {
-        uint reward = litters.createNFT(msg.sender, _litterUri);
+    function createNobelLitter(
+        string memory _litterUri,
+        string memory _caption
+    ) public {
+        uint reward = litters.createNFT(msg.sender, _litterUri, _caption);
         nobels.transfer(msg.sender, reward);
     }
     
@@ -37,6 +40,10 @@ contract NobelMain is Ownable {
     
     function getBalanceOfNobels(address _checker) public view returns(uint balance_){
         return nobels.balanceOf(_checker);
+    }
+
+    fallback () external {
+        revert();
     }
     
 }
