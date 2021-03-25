@@ -4,6 +4,8 @@ import OpenNFTContract from "./contracts/OpenNFT.json";
 import NobelMainContract from "./contracts/NobelMain.json";
 import NobelTokenContract from "./contracts/NobelToken.json";
 import getWeb3 from "./getWeb3";
+import Web3 from 'web3';
+import imageCompression from 'browser-image-compression';
 
 import ipfsClient from 'ipfs-http-client';
 const ipfs = ipfsClient('https://ipfs.infura.io:5001');
@@ -11,15 +13,29 @@ const ipfs = ipfsClient('https://ipfs.infura.io:5001');
 
 
 class App extends Component {
-  state = { isLoaded: false, litters: [] };
+  state = { isLoaded: false, litters: [], refresh: false, currentAccount: '0x00000000000000000000' };
 
   componentDidMount = async () => {
     try {
       // Get network provider and web3 instance.
       this.web3 = await getWeb3();
+      // this.web3 = await new Web3("https://rinkeby.infura.io/v3/ca2f217cd62c4f8081cbfa6f236b609a");
+
+      this.gas = 3000000;
+      this.gasPrice = this.web3.utils.toWei('2','Gwei');
+      console.log(this.gasPrice);
 
       // Use web3 to get the user's accounts.
       this.accounts = await this.web3.eth.getAccounts();
+      setInterval(
+        async ()=>{
+          this.accounts = await this.web3.eth.getAccounts();
+          if(this.state.currentAccount !== this.accounts[0]){
+            this.setState({currentAccount: this.accounts[0]});
+          }
+          this.fetchUserStats(this.accounts[0]);
+        }, 1000
+      )
 
       // Get the contract instance.
       this.networkId = await this.web3.eth.net.getId();
@@ -36,24 +52,18 @@ class App extends Component {
         NodeMainNetwork && NodeMainNetwork.address,
       );
 
-      this.currentAccount= this.accounts[0];
-
-      this.fetchUserStats(this.currentAccount);
+      this.fetchUserStats(this.accounts[0]);
 
       this.fetchTokenIds();
 
-      this.listenToNftCreation();
+      this.initialiseNobelTokenContract();
 
-      // const NodeTokenNetwork = NobelTokenContract.networks[this.networkId];
-      // this.NodeTokenInstance = new this.web3.eth.Contract(
-      //   NobelTokenContract.abi,
-      //   NodeTokenNetwork && NodeTokenNetwork.address,
-      // );
+      this.listenToNftCreation();
 
       // Set web3, accounts, and contract to the state, and then proceed with an
       // example of interacting with the contract's methods.
       if(this.web3){
-        this.setState({ isLoaded: true});
+        this.setState({ isLoaded: true, currentAccount: this.accounts[0]});
       }
     } catch (error) {
       // Catch any errors for any of the above operations.
@@ -64,13 +74,40 @@ class App extends Component {
     }
   };
 
+  giftReward = async (creator) => {
+    const currentAccount = this.state.currentAccount;
+    const balance = await this.NobelTokenInstance.methods.balanceOf(this.state.currentAccount).call();
+    console.log(balance);
+    if(balance<1){
+      alert("Sorry, you don't have enough Nobel Token Balance. Earn Nobel tokens by destroying some Litter.");
+      return;
+    }
+    return await this.NobelTokenInstance.methods.transfer(creator, 1).send({
+      from: currentAccount,
+      gas: this.gas,
+      gasPrice: this.gasPrice
+    }).on('receipt',(receipt)=>true)
+      .on('error', (error)=>false);
+  }
+
+  initialiseNobelTokenContract = async () => {
+    const NobelTokenAddress = await this.NodeMainInstance.methods.getNobelsContractAddress().call();
+    console.log({NobelTokenAddress});
+      this.NobelTokenInstance = new this.web3.eth.Contract(
+        NobelTokenContract.abi,
+        NobelTokenAddress
+      );
+  }
+
   fetchTokenIds = async () => {
     const litters = this.state.litters;
     const CurrentTokenId = await this.OpenNFTInstance.methods.tokenId().call();
     for(let i = 1; i<=CurrentTokenId; i++){
       const tokenUri = await this.OpenNFTInstance.methods.getTokenUri(i).call();
+      const creator = await this.OpenNFTInstance.methods.getTokenCreator(i).call();
+      const caption = await this.OpenNFTInstance.methods.getTokenCaption(i).call();
       const tokenId = i;
-      litters.unshift({tokenUri, tokenId});
+      litters.unshift({tokenUri, tokenId, creator, caption });
     };
     this.setState({litters: litters});
   }
@@ -79,8 +116,8 @@ class App extends Component {
     this.OpenNFTInstance.events.NftTokenCreated()
             .on('data',
                   (receipt)=>{
-                    const {creator, tokenId, tokenUri} = receipt.returnValues
-                    const litter = {creator, tokenId, tokenUri};
+                    const {creator, tokenId, tokenUri, caption} = receipt.returnValues
+                    const litter = {creator, tokenId, tokenUri, caption};
                     const litters = this.state.litters;
                     litters.unshift(litter);
                     this.setState({litters: litters});
@@ -99,20 +136,21 @@ class App extends Component {
     })
   }
 
-  postLitterOnContract = async (uri) => {
+  postLitterOnContract = async (uri, caption) => {
+    const currentAccount = this.state.currentAccount;
     const response = await this.NodeMainInstance.methods
-                  .createNobelLitter(uri).send({
-                    from: this.currentAccount,
-                    gas: 3000000,
-                    gasPrice: 150000
-                  });
+                  .createNobelLitter(uri, caption).send({
+                    from: currentAccount,
+                    gas: this.gas,
+                    gasPrice: this.gasPrice
+                  }).on('error',(error)=>{
+                              alert("Litter Already Exists"); 
+                              return false;
+                            });
     console.log(response);
-    await this.fetchUserStats(this.currentAccount);
+    await this.fetchUserStats(this.state.currentAccount);
+    return true;
   }
-
-  // fetchLitters = async () => {
-  //   const response = await this.OpenNFTInstance.methods.
-  // }
 
   render() {
     if (!this.web3) {
@@ -122,14 +160,14 @@ class App extends Component {
       <div className="App container">
         <div className={'row'}>
           <UserStats 
-              userAddress={this.currentAccount} 
+              userAddress={this.state.currentAccount} 
               totalLitters={this.state.litterBalance} 
               nobelBalance={this.state.nobelBalance} 
               />
         </div>
         <div className={'row'}>
           <PostLitter postLitterOnContract={this.postLitterOnContract} />
-          <ViewLitters litters={this.state.litters} />
+          <ViewLitters litters={this.state.litters} giftReward={this.giftReward} />
         </div>
       </div>
     );
@@ -144,15 +182,15 @@ const UserStats = ({userAddress, totalLitters, nobelBalance}) => {
 
   return (
         <div className={'user-stats col-12 d-flex flex-wrap justify-content-around'}>
-            <h4 >
+            <p className={'h5'} style={{wordBreak: 'break-all'}} >
               User Address:- {userAddress}
-            </h4>
-            <h4>
-              Total Litters Sumbitted:- {totalLitters}
-            </h4>
-            <h4>
-              Nobel Balance:- {nobelBalance}
-            </h4>
+            </p>
+            <p className={'h5'} style={{wordBreak: 'break-all'}} >
+            Total Litters Sumbitted:- {totalLitters}
+            </p>
+            <p className={'h5'} style={{wordBreak: 'break-all'}} >
+            Nobel Balance:- {nobelBalance}
+            </p>
         </div>
   )
 
@@ -161,29 +199,55 @@ const UserStats = ({userAddress, totalLitters, nobelBalance}) => {
 
 const PostLitter = ({postLitterOnContract}) => {
 
+  const DESTROY_LITTER = "Destroy Litter!";
+  const SORTING = "Sorting....";
+  const DESTROYING = "Destroying....";
+
   const [imageLoaded, setImageLoaded] = useState(false);
   const [file, setFile] = useState();
   const [previewImage, setPreviewImage] = useState();
+  const [caption, setCaption] = useState();
+  const [postingState, setPostingState] = useState(DESTROY_LITTER)
 
-  const handleInputFile = (event) => {
+  const handleCaptionChange = (event) => {
+    if(event.target.value!==null){
+      setCaption(event.target.value);
+    }
+  }
+
+  const handleInputFile = async  (event) => {
     if( event.target.files && event.target.files[0] ){
       const file = event.target.files[0];
       setPreviewImage(URL.createObjectURL(file));
       setImageLoaded(true);
+      setPostingState(SORTING);
+      const options = {
+          maxSizeMB: 0.25
+      };
+      const compressedFile = await imageCompression(file, options);
+      console.log(compressedFile);
       const reader = new window.FileReader();
-      reader.readAsArrayBuffer(file);
+      reader.readAsArrayBuffer(compressedFile);
       reader.onloadend = () => {
+        setPostingState(DESTROY_LITTER);
         setFile(Buffer(reader.result));
       }
     }
   }
 
   const handleDestroyLitter = async () => {
+    if(postingState!==DESTROY_LITTER) return;
+    if(file===null) return;
+    setPostingState(DESTROYING)
     console.log(file);
     const result = await ipfs.add(file);
-    await postLitterOnContract(
-      `https://ipfs.infura.io/ipfs/${result.path}`
-      );
+    console.log(result);
+    const flag = await postLitterOnContract(
+                                        result.path, caption || 'Awesome'
+                                        )
+    if(!flag) { alert("Destroying Failed"); return; }
+    alert("Destroyed Successfully");
+    setPostingState(DESTROY_LITTER);
   }
 
 
@@ -205,6 +269,10 @@ const PostLitter = ({postLitterOnContract}) => {
                       Pick Up Litter...
                   </label>
               </div>
+              <div className={"form-group mt-1 mb-3"}>
+                <label htmlFor="exampleFormControlInput1">Something About Litter</label>
+                <input type={"text"} onChange={handleCaptionChange} value={caption} className={"form-control"} id={"exampleFormControlInput1"} placeholder={"Worst"} />
+              </div>
               {
                 imageLoaded?
                     <div className={'litter-preview-container mt-3 mb-3 p-2'}>
@@ -215,7 +283,7 @@ const PostLitter = ({postLitterOnContract}) => {
               }
               <div>
                 <button type={'button'} onClick={handleDestroyLitter} className={'btn btn-danger mt-3 mb-3'} >
-                  Destroy Litter!
+                  {postingState}
                 </button>
               </div>
             </form>
@@ -226,16 +294,19 @@ const PostLitter = ({postLitterOnContract}) => {
 }
 
 
-const ViewLitters = ({litters}) => {
+const ViewLitters = ({litters, giftReward}) => {
 
   const renderLitters = (litters) =>
         litters.map(
-            litter => <LitterCard litter={litter} key={litter.tokenId} />
+            litter => <LitterCard litter={litter} key={litter.tokenId} giftReward={giftReward} />
           )
 
   return (
-          <div className={'col-12 col-md-6 view-litters'} >
-            <div className={'mt-5 mb-5 p-2 d-flex justify-content-center'}>
+          <div className={'col-12 col-md-6 pt-5 view-litters'} >
+            <h2>
+              Litters by the community
+            </h2>
+            <div className={'mt-5 mb-5 p-2'}>
                 {renderLitters(litters)}
             </div>
           </div>
@@ -243,18 +314,40 @@ const ViewLitters = ({litters}) => {
 
 }
 
-const LitterCard = ({litter}) => {
+const LitterCard = ({litter, giftReward}) => {
 
-  const [imageLoaded, setImageLoaded] = useState(true);
+  const [isGifting, setIsGifting] = useState(false);
+
+  const giveReward = async () => {
+    setIsGifting(true);
+    alert(`Are you sure you want to gift ${litter.creator}, 1 Nobel Token`);
+    const flag = await giftReward(litter.creator);
+    if(!flag){
+      alert("Sending Reward Failed");
+      return;
+    }
+    alert("Sent");
+    setIsGifting(false)
+  }
 
   return (
-          <div className="card" style={{width: '18rem'}}>
-                  <img src={litter.tokenUri} className="card-img-top" alt="..." />
+          <div className={'w-100 d-flex justify-content-center'}>
+            <div className={"card mt-2 mb-2"} style={{width: '20rem'}}>
+                  <img src={`https://ipfs.infura.io/ipfs/${litter.tokenUri}`} className="card-img-top" alt="..." />
                   <div className="card-body">
-                    <h5 className="card-title">Username</h5>
-                    <a href="#" className="btn btn-primary">Give Reward</a>
+                    <h5 className="card-title">{litter.creator}</h5>
+                    <p className="card-body">{litter.caption}</p>
+                    <button type={'button'} className="btn btn-primary" onClick={giveReward} >
+                      {
+                        isGifting?
+                          "Sending...."
+                          :
+                          "Give 1 Nobel Token as Reward"
+                      }
+                    </button>
                   </div>
             </div>
+          </div>
   )
 
 

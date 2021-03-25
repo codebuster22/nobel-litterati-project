@@ -1,8 +1,8 @@
 const path = require("path");
 const HDWallet = require('@truffle/hdwallet-provider');
-require('dotenv').config({path: './.env'});
+require('dotenv').config({path: '../.env'});
 
-const mnemonic = "antique arctic cactus effort random turtle gentle audit effort people lemon bottom";
+const mnemonic = process.env.MNEMONIC;
 
 module.exports = {
   // See <http://truffleframework.com/docs/advanced/configuration>
@@ -19,7 +19,7 @@ module.exports = {
       network_id: 5777
     },
     rinkeby: {
-      provider: () => new HDWallet(mnemonic, 'https://rinkeby.infura.io/v3/ffe539b51101462a929b607c54322ff7'),
+      provider: () => new HDWallet(mnemonic, 'wss://rinkeby.infura.io/ws/v3/ca2f217cd62c4f8081cbfa6f236b609a'),
       // host: 'https://rinkeby.infura.io/v3/3c4066a3dd9642d4a05593f69e2937eb',
       network_id: 4
     }
