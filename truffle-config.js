@@ -19,8 +19,7 @@ module.exports = {
       network_id: 5777
     },
     rinkeby: {
-      provider: () => new HDWallet(mnemonic, 'wss://rinkeby.infura.io/ws/v3/ca2f217cd62c4f8081cbfa6f236b609a'),
-      // host: 'https://rinkeby.infura.io/v3/3c4066a3dd9642d4a05593f69e2937eb',
+      provider: () => new HDWallet(mnemonic, 'rinkeby-url'),
       network_id: 4
     }
   },
