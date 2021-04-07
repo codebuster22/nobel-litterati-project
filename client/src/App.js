@@ -4,16 +4,14 @@ import OpenNFTContract from "./contracts/OpenNFT.json";
 import NobelMainContract from "./contracts/NobelMain.json";
 import NobelTokenContract from "./contracts/NobelToken.json";
 import getWeb3 from "./getWeb3";
-import Web3 from 'web3';
-import imageCompression from 'browser-image-compression';
-
+import {Modal, Button} from 'react-bootstrap';
 import ipfsClient from 'ipfs-http-client';
 const ipfs = ipfsClient('https://ipfs.infura.io:5001');
 
 
 
 class App extends Component {
-  state = { isLoaded: false, litters: [], refresh: false, currentAccount: '0x00000000000000000000' };
+  state = { isLoaded: false, litters: [], refresh: false, currentAccount: '0x00000000000000000000', isRegistered: false };
 
   componentDidMount = async () => {
     try {
@@ -31,9 +29,9 @@ class App extends Component {
         async ()=>{
           this.accounts = await this.web3.eth.getAccounts();
           if(this.state.currentAccount !== this.accounts[0]){
-            this.setState({currentAccount: this.accounts[0]});
+            await this.changeUser(this.accounts[0]);
           }
-          this.fetchUserStats(this.accounts[0]);
+          this.fetchUserStats(this.accounts[0], this.state.isRegistered);
         }, 1000
       )
 
@@ -52,7 +50,9 @@ class App extends Component {
         NodeMainNetwork && NodeMainNetwork.address,
       );
 
-      this.fetchUserStats(this.accounts[0]);
+      this.changeUser(this.accounts[0]);
+
+      this.fetchUserStats(this.accounts[0], this.state.isRegistered);
 
       this.fetchTokenIds();
 
@@ -73,6 +73,52 @@ class App extends Component {
       console.error(error);
     }
   };
+
+  onHide = () => {
+    this.setState(
+      {show: false}
+    );
+  }
+
+  onShow = () => {
+    this.setState(
+      {show: true}
+    );
+  }
+
+  register = async (userName) => {
+    return await this.NodeMainInstance.methods.registerUser(userName).send(
+      {
+        from: this.state.currentAccount,
+        gas: this.gas,
+        gasPrice: this.gasPrice
+      }
+    ).on('receipt',(receipt)=>{
+      this.setState({
+        isRegistered: true
+      });
+      this.fetchUserStats(this.state.currentAccount)
+      return true
+    })
+    .on('error',(error)=>{
+      return false
+    })
+  }
+
+  changeUser = async (account) => {
+    const isRegistered = await this.NodeMainInstance
+                            .methods.isRegistered(account).call();
+    const newState = {
+      currentAccount: account,
+      isRegistered: isRegistered==0?false:true
+    }
+    newState.show = !newState.isRegistered?true:false;
+    this.setState(
+      {
+        ...newState
+      }
+    )
+  }
 
   giftReward = async (creator) => {
     const currentAccount = this.state.currentAccount;
@@ -106,8 +152,9 @@ class App extends Component {
       const tokenUri = await this.OpenNFTInstance.methods.getTokenUri(i).call();
       const creator = await this.OpenNFTInstance.methods.getTokenCreator(i).call();
       const caption = await this.OpenNFTInstance.methods.getTokenCaption(i).call();
+      const creatorName = await this.NodeMainInstance.methods.user_address_to_user_name(creator).call();
       const tokenId = i;
-      litters.unshift({tokenUri, tokenId, creator, caption });
+      litters.unshift({tokenUri, tokenId, creator, caption, creatorName });
     };
     this.setState({litters: litters});
   }
@@ -115,9 +162,10 @@ class App extends Component {
   listenToNftCreation = async () => {
     this.OpenNFTInstance.events.NftTokenCreated()
             .on('data',
-                  (receipt)=>{
-                    const {creator, tokenId, tokenUri, caption} = receipt.returnValues
-                    const litter = {creator, tokenId, tokenUri, caption};
+                  async (receipt)=>{
+                    const {creator, tokenId, tokenUri, caption} = receipt.returnValues;
+                    const creatorName = await this.NodeMainInstance.methods.user_address_to_user_name(creator).call();
+                    const litter = {creator, tokenId, tokenUri, caption, creatorName};
                     const litters = this.state.litters;
                     litters.unshift(litter);
                     this.setState({litters: litters});
@@ -125,15 +173,20 @@ class App extends Component {
               )
   }
 
-  fetchUserStats = async (account) => {
-    const litterBalance = await this.NodeMainInstance
-                          .methods.getBalanceOfLitter(account).call();
-    const nobelBalance = await this.NodeMainInstance
-                          .methods.getBalanceOfNobels(account).call();
-    this.setState({
-      litterBalance: litterBalance,
-      nobelBalance: nobelBalance
-    })
+  fetchUserStats = async (account, isRegistered) => {
+    if(isRegistered){
+      const userName = await this.NodeMainInstance
+                            .methods.user_address_to_user_name(account).call();
+      const litterBalance = await this.NodeMainInstance
+                            .methods.getBalanceOfLitter(account).call();
+      const nobelBalance = await this.NodeMainInstance
+                            .methods.getBalanceOfNobels(account).call();
+      this.setState({
+        userName: userName,
+        litterBalance: litterBalance,
+        nobelBalance: nobelBalance
+      });
+    }
   }
 
   postLitterOnContract = async (uri, caption) => {
@@ -160,6 +213,7 @@ class App extends Component {
       <div className="App container">
         <div className={'row'}>
           <UserStats 
+              userName={this.state.userName}
               userAddress={this.state.currentAccount} 
               totalLitters={this.state.litterBalance} 
               nobelBalance={this.state.nobelBalance} 
@@ -169,6 +223,7 @@ class App extends Component {
           <PostLitter postLitterOnContract={this.postLitterOnContract} />
           <ViewLitters litters={this.state.litters} giftReward={this.giftReward} />
         </div>
+        <RegisterUserModal show={this.state.show} onHide={this.onHide} register={this.register} />
       </div>
     );
   }
@@ -177,13 +232,13 @@ class App extends Component {
 export default App;
 
 
-const UserStats = ({userAddress, totalLitters, nobelBalance}) => {
+const UserStats = ({userName, userAddress, totalLitters, nobelBalance}) => {
 
 
   return (
         <div className={'user-stats col-12 d-flex flex-wrap justify-content-around'}>
             <p className={'h5'} style={{wordBreak: 'break-all'}} >
-              User Address:- {userAddress}
+              User Name:- {userName}
             </p>
             <p className={'h5'} style={{wordBreak: 'break-all'}} >
             Total Litters Sumbitted:- {totalLitters}
@@ -197,12 +252,13 @@ const UserStats = ({userAddress, totalLitters, nobelBalance}) => {
 
 }
 
-const PostLitter = ({postLitterOnContract}) => {
+const PostLitter = ({postLitterOnContract, isRegistered}) => {
 
   const DESTROY_LITTER = "Destroy Litter!";
   const SORTING = "Sorting....";
   const DESTROYING = "Destroying....";
 
+  const [isUser, setIsUser] = useState(isRegistered);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [file, setFile] = useState();
   const [previewImage, setPreviewImage] = useState();
@@ -221,13 +277,8 @@ const PostLitter = ({postLitterOnContract}) => {
       setPreviewImage(URL.createObjectURL(file));
       setImageLoaded(true);
       setPostingState(SORTING);
-      const options = {
-          maxSizeMB: 0.25
-      };
-      const compressedFile = await imageCompression(file, options);
-      console.log(compressedFile);
       const reader = new window.FileReader();
-      reader.readAsArrayBuffer(compressedFile);
+      reader.readAsArrayBuffer(file);
       reader.onloadend = () => {
         setPostingState(DESTROY_LITTER);
         setFile(Buffer(reader.result));
@@ -335,7 +386,7 @@ const LitterCard = ({litter, giftReward}) => {
             <div className={"card mt-2 mb-2"} style={{width: '20rem'}}>
                   <img src={`https://ipfs.infura.io/ipfs/${litter.tokenUri}`} className="card-img-top" alt="..." />
                   <div className="card-body">
-                    <h5 className="card-title">{litter.creator}</h5>
+                    <h5 className="card-title">{litter.creatorName}</h5>
                     <p className="card-body">{litter.caption}</p>
                     <button type={'button'} className="btn btn-primary" onClick={giveReward} >
                       {
@@ -351,4 +402,55 @@ const LitterCard = ({litter, giftReward}) => {
   )
 
 
+}
+
+function RegisterUserModal({show, onHide, register}) {
+
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [userName, setUserName] = useState('')
+
+  const registerUser = async () => {
+    setIsRegistering(true);
+    const flag = await register(userName);
+    if(flag){
+      alert('Success');
+      setIsRegistering(false);
+      onHide();
+    }else {
+      alert('Failed');
+      setIsRegistering(false);
+    }
+  }
+
+  return (
+    <Modal
+      show={show}
+      onHide={onHide}
+      size="lg"
+      aria-labelledby="contained-modal-title-vcenter"
+      centered
+    >
+      <Modal.Header closeButton>
+        <Modal.Title id="contained-modal-title-vcenter">
+          Register here!
+        </Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        <h6>You are not registered, register here!</h6>
+        <div className={'form-group mt-4'}>
+          <label htmlFor={'usernameInput'}>
+            User Name
+          </label>
+          <input value={userName} onChange={(e)=>setUserName(e.target.value)} className={'form-control'} id={'usernameInput'} type={'text'} />
+        </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button className={'btn btn-primary'} onClick={registerUser}>
+          {
+            isRegistering?'Registering...':'Register'
+          }
+        </button>
+      </Modal.Footer>
+    </Modal>
+  );
 }

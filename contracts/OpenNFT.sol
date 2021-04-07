@@ -46,13 +46,13 @@ contract OpenNFT is ERC721, Ownable {
 
         uint newTokenId = tokenId.current();
 
-        _mint(_creator, newTokenId);
-
         tokensHash[newTokenId] = _tokenHash;
         user_to_tokens[_creator].push(newTokenId);  //new
         token_to_creator[newTokenId] = _creator;
         token_to_caption[newTokenId] = _tokenCaption;
         hashExists[_tokenHash] = true;
+
+        _mint(_creator, newTokenId);
 
         emit NftTokenCreated(_creator, newTokenId, tokensHash[newTokenId], _tokenCaption);
 
