@@ -5,10 +5,12 @@
 // |    @func decimals - set decimals to 0                                               |  //
 // ---------------------------------------------------------------------------------------  //
 
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.0;
 
 import './OpenNFT.sol';
-import '@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol';
+import 'https://github.com/OpenZeppelin/openzeppelin-contracts/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol';
 
 contract NobelToken is ERC20PresetMinterPauser {
 
@@ -21,7 +23,6 @@ contract NobelToken is ERC20PresetMinterPauser {
                 uint _minting_allowance_per_call,
                 uint _cool_down_time_per_mint
                 )
-    public
     ERC20PresetMinterPauser('Nobel Token','NBT')
     {
         minting_allowance_per_call = _minting_allowance_per_call;
@@ -40,7 +41,7 @@ contract NobelToken is ERC20PresetMinterPauser {
         _;
     }
 
-    function decimals() public view override returns(uint8) {
+    function decimals() public pure override returns(uint8) {
         return 0;
     }
 

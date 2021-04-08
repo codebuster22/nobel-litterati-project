@@ -1,12 +1,18 @@
-import React, { Component, useState } from "react";
+import React, { Component } from "react";
 import "./App.css";
 import OpenNFTContract from "./contracts/OpenNFT.json";
 import NobelMainContract from "./contracts/NobelMain.json";
 import NobelTokenContract from "./contracts/NobelToken.json";
 import getWeb3 from "./getWeb3";
-import {Modal, Button} from 'react-bootstrap';
-import ipfsClient from 'ipfs-http-client';
-const ipfs = ipfsClient('https://ipfs.infura.io:5001');
+import MenuProvider from 'react-flexible-sliding-menu';
+import ProfileMenu from './Components/ProfileMenu';
+import ViewLitters from './Components/ViewLitters';
+import PostLitter from './Components/PostLitter';
+import RegisterUserModal from './Components/RegisterUserModal';
+import TopBar from './Components/TopBar';
+import UserStatsContext from './UserStatsContext';
+
+
 
 
 
@@ -37,6 +43,7 @@ class App extends Component {
 
       // Get the contract instance.
       this.networkId = await this.web3.eth.net.getId();
+      console.log(this.networkId);
 
       const OpenNFTNetwork = OpenNFTContract.networks[this.networkId];
       this.OpenNFTInstance = new this.web3.eth.Contract(
@@ -209,20 +216,28 @@ class App extends Component {
     if (!this.web3) {
       return <div>Loading Web3, accounts, and contract...</div>;
     }
+    const userStats = {
+      userName: this.state.userName,
+      currentAccount: this.state.currentAccount, 
+      litterBalance: this.state.litterBalance, 
+      nobelBalance: this.state.nobelBalance
+    }
     return (
       <div className="App container">
-        <div className={'row'}>
-          <UserStats 
-              userName={this.state.userName}
-              userAddress={this.state.currentAccount} 
-              totalLitters={this.state.litterBalance} 
-              nobelBalance={this.state.nobelBalance} 
-              />
-        </div>
-        <div className={'row'}>
-          <PostLitter postLitterOnContract={this.postLitterOnContract} />
-          <ViewLitters litters={this.state.litters} giftReward={this.giftReward} />
-        </div>
+        <UserStatsContext.Provider value={userStats} >
+          <MenuProvider 
+                      MenuComponent={ProfileMenu} 
+                      direction={'right'} 
+                      width={'300px'} >
+            <div className={'row'}>
+              <TopBar />
+            </div>
+            <div className={'row'}>
+              <PostLitter postLitterOnContract={this.postLitterOnContract} />
+              <ViewLitters litters={this.state.litters} giftReward={this.giftReward} />
+            </div>
+          </MenuProvider> 
+        </UserStatsContext.Provider>
         <RegisterUserModal show={this.state.show} onHide={this.onHide} register={this.register} />
       </div>
     );
@@ -230,227 +245,3 @@ class App extends Component {
 }
 
 export default App;
-
-
-const UserStats = ({userName, userAddress, totalLitters, nobelBalance}) => {
-
-
-  return (
-        <div className={'user-stats col-12 d-flex flex-wrap justify-content-around'}>
-            <p className={'h5'} style={{wordBreak: 'break-all'}} >
-              User Name:- {userName}
-            </p>
-            <p className={'h5'} style={{wordBreak: 'break-all'}} >
-            Total Litters Sumbitted:- {totalLitters}
-            </p>
-            <p className={'h5'} style={{wordBreak: 'break-all'}} >
-            Nobel Balance:- {nobelBalance}
-            </p>
-        </div>
-  )
-
-
-}
-
-const PostLitter = ({postLitterOnContract, isRegistered}) => {
-
-  const DESTROY_LITTER = "Destroy Litter!";
-  const SORTING = "Sorting....";
-  const DESTROYING = "Destroying....";
-
-  const [isUser, setIsUser] = useState(isRegistered);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [file, setFile] = useState();
-  const [previewImage, setPreviewImage] = useState();
-  const [caption, setCaption] = useState();
-  const [postingState, setPostingState] = useState(DESTROY_LITTER)
-
-  const handleCaptionChange = (event) => {
-    if(event.target.value!==null){
-      setCaption(event.target.value);
-    }
-  }
-
-  const handleInputFile = async  (event) => {
-    if( event.target.files && event.target.files[0] ){
-      const file = event.target.files[0];
-      setPreviewImage(URL.createObjectURL(file));
-      setImageLoaded(true);
-      setPostingState(SORTING);
-      const reader = new window.FileReader();
-      reader.readAsArrayBuffer(file);
-      reader.onloadend = () => {
-        setPostingState(DESTROY_LITTER);
-        setFile(Buffer(reader.result));
-      }
-    }
-  }
-
-  const handleDestroyLitter = async () => {
-    if(postingState!==DESTROY_LITTER) return;
-    if(file===null) return;
-    setPostingState(DESTROYING)
-    console.log(file);
-    const result = await ipfs.add(file);
-    console.log(result);
-    const flag = await postLitterOnContract(
-                                        result.path, caption || 'Awesome'
-                                        )
-    if(!flag) { alert("Destroying Failed"); return; }
-    alert("Destroyed Successfully");
-    setPostingState(DESTROY_LITTER);
-  }
-
-
-  return (
-          <div className={'col-12 col-md-6 post-litter'} >
-            <form >
-              <div className={'custom-file mt-5 mb-3'}>
-                <input 
-                    type={'file'} 
-                    onChange={handleInputFile}
-                    placeholder={"Upload the litter"} 
-                    className={'upload-litter custom-file-input'} 
-                    id={'customFile'} 
-                  />
-                <label 
-                    className={'custom-file-label'}
-                    htmlFor={'customFile'}
-                    >
-                      Pick Up Litter...
-                  </label>
-              </div>
-              <div className={"form-group mt-1 mb-3"}>
-                <label htmlFor="exampleFormControlInput1">Something About Litter</label>
-                <input type={"text"} onChange={handleCaptionChange} value={caption} className={"form-control"} id={"exampleFormControlInput1"} placeholder={"Worst"} />
-              </div>
-              {
-                imageLoaded?
-                    <div className={'litter-preview-container mt-3 mb-3 p-2'}>
-                      <img src={previewImage} alt={'litter-preview'} className={'LitterPreview'} />
-                    </div>
-                    :
-                    <></>
-              }
-              <div>
-                <button type={'button'} onClick={handleDestroyLitter} className={'btn btn-danger mt-3 mb-3'} >
-                  {postingState}
-                </button>
-              </div>
-            </form>
-          </div>
-  )
-
-
-}
-
-
-const ViewLitters = ({litters, giftReward}) => {
-
-  const renderLitters = (litters) =>
-        litters.map(
-            litter => <LitterCard litter={litter} key={litter.tokenId} giftReward={giftReward} />
-          )
-
-  return (
-          <div className={'col-12 col-md-6 pt-5 view-litters'} >
-            <h2>
-              Litters by the community
-            </h2>
-            <div className={'mt-5 mb-5 p-2'}>
-                {renderLitters(litters)}
-            </div>
-          </div>
-  )
-
-}
-
-const LitterCard = ({litter, giftReward}) => {
-
-  const [isGifting, setIsGifting] = useState(false);
-
-  const giveReward = async () => {
-    setIsGifting(true);
-    alert(`Are you sure you want to gift ${litter.creator}, 1 Nobel Token`);
-    const flag = await giftReward(litter.creator);
-    if(!flag){
-      alert("Sending Reward Failed");
-      return;
-    }
-    alert("Sent");
-    setIsGifting(false)
-  }
-
-  return (
-          <div className={'w-100 d-flex justify-content-center'}>
-            <div className={"card mt-2 mb-2"} style={{width: '20rem'}}>
-                  <img src={`https://ipfs.infura.io/ipfs/${litter.tokenUri}`} className="card-img-top" alt="..." />
-                  <div className="card-body">
-                    <h5 className="card-title">{litter.creatorName}</h5>
-                    <p className="card-body">{litter.caption}</p>
-                    <button type={'button'} className="btn btn-primary" onClick={giveReward} >
-                      {
-                        isGifting?
-                          "Sending...."
-                          :
-                          "Give 1 Nobel Token as Reward"
-                      }
-                    </button>
-                  </div>
-            </div>
-          </div>
-  )
-
-
-}
-
-function RegisterUserModal({show, onHide, register}) {
-
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [userName, setUserName] = useState('')
-
-  const registerUser = async () => {
-    setIsRegistering(true);
-    const flag = await register(userName);
-    if(flag){
-      alert('Success');
-      setIsRegistering(false);
-      onHide();
-    }else {
-      alert('Failed');
-      setIsRegistering(false);
-    }
-  }
-
-  return (
-    <Modal
-      show={show}
-      onHide={onHide}
-      size="lg"
-      aria-labelledby="contained-modal-title-vcenter"
-      centered
-    >
-      <Modal.Header closeButton>
-        <Modal.Title id="contained-modal-title-vcenter">
-          Register here!
-        </Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        <h6>You are not registered, register here!</h6>
-        <div className={'form-group mt-4'}>
-          <label htmlFor={'usernameInput'}>
-            User Name
-          </label>
-          <input value={userName} onChange={(e)=>setUserName(e.target.value)} className={'form-control'} id={'usernameInput'} type={'text'} />
-        </div>
-      </Modal.Body>
-      <Modal.Footer>
-        <button className={'btn btn-primary'} onClick={registerUser}>
-          {
-            isRegistering?'Registering...':'Register'
-          }
-        </button>
-      </Modal.Footer>
-    </Modal>
-  );
-}

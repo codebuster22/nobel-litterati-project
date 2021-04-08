@@ -1,8 +1,9 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import '@openzeppelin/contracts/token/ERC721/ERC721.sol';
-import "@openzeppelin/contracts/utils/Counters.sol";
-import '@openzeppelin/contracts/access/Ownable.sol';
+import 'https://github.com/OpenZeppelin/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol';
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/contracts/utils/Counters.sol";
+import 'https://github.com/OpenZeppelin/openzeppelin-contracts/contracts/access/Ownable.sol';
 
 contract OpenNFT is ERC721, Ownable {
     using Counters for Counters.Counter;
@@ -28,7 +29,6 @@ contract OpenNFT is ERC721, Ownable {
         string memory _name,
         string memory _symbol
     ) 
-    public 
     ERC721(_name, _symbol)
     {
         setBaseUrl("ipfs.infura.io/ipfs/");

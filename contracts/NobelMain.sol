@@ -7,6 +7,8 @@
 // |    @func getBalanceOfNobels - Returns NBT Token Balance of user                     |  //
 // ---------------------------------------------------------------------------------------  //
 
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.0;
 
 import './OpenNFT.sol';
@@ -40,7 +42,7 @@ contract NobelMain is Ownable {
         uint _initial_supply,
         uint _minting_allowance_per_call,
         uint _cool_down_time_per_mint
-        ) public {
+        ) {
         litters = OpenNFT(_litter);
         nobels = new NobelToken(_initial_supply, _minting_allowance_per_call, _cool_down_time_per_mint);
     }
